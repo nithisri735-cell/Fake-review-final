@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+.env
+*.pyc
+artifacts/
+artifacts_test/
+dl_artifacts/
+*.joblib
+*.pt
+*.safetensors

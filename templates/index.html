@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tanglish Fake Review Detection</title>
+    <style>
+        :root {
+            --bg-1: #f4efe6;
+            --bg-2: #dbe8d8;
+            --panel: rgba(255, 255, 255, 0.88);
+            --ink: #17211a;
+            --accent: #1f6f5f;
+            --accent-2: #d96d3d;
+            --border: rgba(23, 33, 26, 0.12);
+            --shadow: 0 18px 50px rgba(23, 33, 26, 0.14);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: Georgia, "Times New Roman", serif;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at top left, rgba(217, 109, 61, 0.25), transparent 30%),
+                radial-gradient(circle at bottom right, rgba(31, 111, 95, 0.22), transparent 28%),
+                linear-gradient(135deg, var(--bg-1), var(--bg-2));
+            display: grid;
+            place-items: center;
+            padding: 24px;
+        }
+
+        .card {
+            width: min(760px, 100%);
+            background: var(--panel);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            border-radius: 24px;
+            padding: 28px;
+            backdrop-filter: blur(8px);
+        }
+
+        h1 {
+            margin: 0 0 10px;
+            font-size: clamp(2rem, 4vw, 3rem);
+        }
+
+        p {
+            margin: 0 0 18px;
+            line-height: 1.6;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 180px;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            padding: 16px;
+            font-size: 1rem;
+            resize: vertical;
+            background: rgba(255, 255, 255, 0.92);
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        button {
+            border: none;
+            border-radius: 999px;
+            padding: 12px 18px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.15s ease, opacity 0.15s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+        }
+
+        .primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .secondary {
+            background: var(--accent-2);
+            color: white;
+        }
+
+        .ghost {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--ink);
+        }
+
+        .status {
+            margin-top: 18px;
+            padding: 14px 16px;
+            border-radius: 18px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.8);
+            min-height: 54px;
+        }
+
+        .result-badge {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+        }
+
+        .real {
+            background: rgba(31, 111, 95, 0.12);
+            color: #165447;
+        }
+
+        .fake {
+            background: rgba(217, 109, 61, 0.12);
+            color: #9a431d;
+        }
+    </style>
+</head>
+<body>
+    <main class="card">
+        <h1>Tanglish Fake Review Detector</h1>
+        <p>Type a review or use the microphone. The spoken review will first be converted into text, then the model will predict whether it is real or fake.</p>
+
+        <textarea id="reviewText" placeholder="Type or speak a review here..."></textarea>
+
+        <div class="actions">
+            <button class="secondary" id="micButton" type="button">Use Microphone</button>
+            <button class="primary" id="predictButton" type="button">Predict Review</button>
+            <button class="ghost" id="clearButton" type="button">Clear</button>
+        </div>
+
+        <div class="status" id="statusBox">Ready for input.</div>
+    </main>
+
+    <script>
+        const reviewText = document.getElementById("reviewText");
+        const statusBox = document.getElementById("statusBox");
+        const micButton = document.getElementById("micButton");
+        const predictButton = document.getElementById("predictButton");
+        const clearButton = document.getElementById("clearButton");
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang = "en-IN";
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onstart = () => {
+                statusBox.textContent = "Listening... please speak your review.";
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                reviewText.value = transcript;
+                statusBox.textContent = "Voice converted to text. Review is ready for prediction.";
+            };
+
+            recognition.onerror = (event) => {
+                statusBox.textContent = "Speech recognition error: " + event.error;
+            };
+        } else {
+            micButton.disabled = true;
+            statusBox.textContent = "Microphone input is not supported in this browser. Use Chrome or Edge for voice input.";
+        }
+
+        micButton.addEventListener("click", () => {
+            if (recognition) {
+                recognition.start();
+            }
+        });
+
+        clearButton.addEventListener("click", () => {
+            reviewText.value = "";
+            statusBox.textContent = "Cleared. Ready for new input.";
+        });
+
+        predictButton.addEventListener("click", async () => {
+            const review = reviewText.value.trim();
+            if (!review) {
+                statusBox.textContent = "Please enter or speak a review first.";
+                return;
+            }
+
+            statusBox.textContent = "Predicting...";
+
+            try {
+                const response = await fetch("/predict", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ review })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    statusBox.textContent = data.error || "Prediction failed.";
+                    return;
+                }
+
+                const badgeClass = data.label === "fake" ? "fake" : "real";
+                statusBox.innerHTML = `
+                    <div>${data.message}</div>
+                    <div class="result-badge ${badgeClass}">${data.label.toUpperCase()}</div>
+                `;
+            } catch (error) {
+                statusBox.textContent = "Network or server error while predicting.";
+            }
+        });
+    </script>
+</body>
+</html>
